@@ -72,3 +72,70 @@ Seq(
 )
 ```
 
+I have use both RDD and Dataframe approach, for example let's compare both Station functions:
+
+```scala
+  // Reading File and Wrangling them
+  def readStation(stationFile: String) = {
+    val stationsRdd = spark.sparkContext.parallelize(
+      Source.fromInputStream(getClass.getResourceAsStream(stationFile), "utf-8").getLines().toStream
+    )
+
+    val stations = stationsRdd
+      .map(_.split(','))
+      .filter(_.length == 4)
+      .filter(line => line(2).toDouble != 0.0 && line(3).toDouble != 0.0)
+      .map(a => ((a(0), a(1)), Location(a(2).toDouble, a(3).toDouble)))
+
+    stations
+  }
+```
+
+In this function I read the input file from resource as stream and convert toStream, after this I just split the String, filter the not null values in the Array[String] and last I remove the wrong location and convert to a RDD case class object.
+
+Using Dataframe is more simple and Optimizing (catalyst otimizer):
+
+```scala
+ def readStation(stationFile: String) = {
+    // get path
+    val path = getClass.getResource(stationFile).getPath
+    // Schema for my dataframe
+    val schemaStation = StructType(List(
+      StructField("SIN",StringType,nullable = true),
+      StructField("WBAN",StringType,nullable = true),
+      StructField("Latitude",DoubleType,nullable = true),
+      StructField("Longitude",DoubleType,nullable = true)
+    ))
+
+    // retrun the dataframe with unique ID
+    val stationDF = spark.read.schema(schemaStation)
+      //.format("csv")
+      //.option("header", "false")
+      //.option("delimiter", ",")
+      .csv(resourcePath(stationFile))
+      .withColumn("id", uniqueID(col("SIN"),col("WBAN")))
+      .na.drop(Seq("Latitude","Longitude"))
+      .withColumn("WBAN",extractDateAsOptionInt(col("WBAN")))
+      .withColumn("SIN",extractDateAsOptionInt(col("SIN")))
+      .withColumn("id", uniqueID(col("SIN"),col("WBAN")))
+      .select(col("id"),col("Latitude"),col("Longitude"))
+      .where(col("Latitude") =!= 0.0 && col("Longitude") =!= 0.0)
+
+    stationDF
+  }
+```
+
+First I read the csv path and create my own schema. Afte that I just read the csv file, rename the compund key to unique primary key id, and remove the wrong Latitude,Longitude and blank spaces in WBAN and SIN.
+
+```scala
+  val convert = udf((s: Double) => (s - 32.0) * (5.0/9.0))
+  val uniqueID = udf((a: String,b: String) => a+b)
+  val extractDateAsOptionInt = udf((d: String) => d match {
+    case null => ""
+    case s => s
+  })
+```
+
+--------------------------------------------------------------
+
+## Second Milestone
