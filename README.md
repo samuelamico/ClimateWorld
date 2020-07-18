@@ -139,3 +139,45 @@ First I read the csv path and create my own schema. Afte that I just read the cs
 --------------------------------------------------------------
 
 ## Second Milestone
+
+Your records contain the average temperature over a year, for each station’s location. Your work consists in building an image of 360×180 pixels, where each pixel shows the temperature at its location. The point at latitude 0 and longitude 0 (the intersection between the Greenwich meridian and the equator) will be at the center of the image:
+
+![Location](https://github.com/samuelamico//image.jpg?raw=true)
+
+In this figure, the red crosses represent the weather stations. As you can see, you will have to spatially interpolate the data in order to guess the temperature corresponding to the location of each pixel (such a pixel is represented by a green square in the picture). Then you will have to convert this temperature value into a pixel color based on a color scale:
+
+### Spatial interpolation
+
+```scala
+def predictTemperature(
+  temperatures: Iterable[(Location, Temperature)],
+  location: Location
+): Temperature
+```
+
+This method takes a sequence of known temperatures at the given locations, and a location where we want to guess the temperature, and returns an estimate based on the inverse distance weighting algorithm (you can use any p value greater or equal to 2; try and use whatever works best for you!). To approximate the distance between two locations, we suggest you to use the great-circle distance formula.
+
+Note that the great-circle distance formula is known to have rounding errors for short distances (a few meters), but that’s not a problem for us because we don’t need such a high degree of precision. Thus, you can use the first formula given on the Wikipedia page, expanded to cover some edge cases like equal locations and antipodes
+
+However, running the inverse distance weighting algorithm with small distances will result in huge numbers (since we divide by the distance raised to the power of p), which can be a problem. A solution to this problem is to directly use the known temperature of the close (less than 1 km) location as a prediction.
+
+### Linear interpolation
+
+```scala
+def interpolateColor(points: Iterable[(Temperature, Color)], value: Temperature): Color
+```
+
+This method takes a sequence of reference temperature values and their associated color, and a temperature value, and returns an estimate of the color corresponding to the given value, by applying a linear interpolation algorithm.
+
+Note that the given points are not sorted in a particular order.
+
+### Visualization
+
+Once you have completed the above steps you can implement the visualize method to build an image (using the scrimage library) where each pixel shows the temperature corresponding to its location.
+
+```scala
+def visualize(
+  temperatures: Iterable[(Location, Temperature)],
+  colors: Iterable[(Temperature, Color)]
+): Image
+```

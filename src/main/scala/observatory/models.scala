@@ -1,11 +1,15 @@
 package observatory
 import java.time.LocalDate
+import scala.math._
+import com.sksamuel.scrimage.RGBColor
 /**
   * Introduced in Week 1. Represents a location on the globe.
   * @param lat Degrees of latitude, -90 ≤ lat ≤ 90
   * @param lon Degrees of longitude, -180 ≤ lon ≤ 180
   */
-case class Location(lat: Double, lon: Double)
+case class Location(lat: Double, lon: Double) {
+  lazy val point:Point = Point(toRadians(lat), toRadians(lon))
+}
 
 /**
   * Introduced in Week 3. Represents a tiled web map tile.
@@ -38,7 +42,10 @@ case class CellPoint(x: Double, y: Double)
   * @param green Level of green, 0 ≤ green ≤ 255
   * @param blue Level of blue, 0 ≤ blue ≤ 255
   */
-case class Color(red: Int, green: Int, blue: Int)
+case class Color(red: Int, green: Int, blue: Int) {
+  def pixel(alpha: Int = 255) = RGBColor(red, green, blue, alpha).toPixel
+}
+
 
 case class Joined(id: String, year: Int, month: Int, day: Int, temperature: Double ,latitude:Double, longitude: Double)
 
@@ -49,6 +56,50 @@ case class StationDate(day: Int, month: Int, year: Int){
 case class JoinedFormat(date: StationDate, location: Location, temperature: Double)
 
 
-case class Station(id: String, latitude: Double, longitude: Double)
+//case class Station(id: String, latitude: Double, longitude: Double)
 
 case class TemperatureRecord(id: String, day: Int, month: Int, year: Int, temperature: Double)
+//
+case class ReadingDate(year: Int, month: Int, day: Int) {
+  def toLocalDate: LocalDate = LocalDate.of(year, month, day)
+}
+case class Station(id: String, lat: Double, lon: Double)
+
+case class TempReading(id: String, month: Int, day: Int, temperature: Double)
+
+case class StnTempReading(id: String, month: Int, day: Int, temperature: Double, lat: Double, lon: Double)
+
+case class LocatedTemperature(date: ReadingDate, location: Location, temperature: Double)
+
+
+//// Visualization class
+
+case class Point(ϕ: Double, λ: Double) {
+  lazy val location:Location = Location(toDegrees(ϕ), toDegrees(λ))
+
+  /**
+    * Added for special case: https://www.coursera.org/learn/scala-capstone/discussions/weeks/2/threads/YY0u6Ax8EeeqzRJFs29uDA
+    *
+    * @param other Point for distance calculatuion
+    * @return distance on earth in meters
+    */
+  def haversineEarthDistance(other: Point): Double = {
+    var r = 6372.8 // mean radius Earth in KM
+    r * greatCircleDistance(other) * 1000
+  }
+
+  /**
+    * https://en.wikipedia.org/wiki/Great-circle_distance#Computational_formulas
+    *
+    * @param other Point for distance calculatuion
+    * @return distance in radians
+    */
+  def greatCircleDistance(other: Point): Double = {
+    val Δϕ = abs(other.ϕ - ϕ)
+    val Δλ = abs(other.λ - λ)
+
+    val a =  pow(sin(Δϕ / 2), 2) + cos(ϕ) * cos(other.ϕ) * pow(sin(Δλ / 2), 2)
+    2 * atan2(sqrt(a), sqrt(1 - a))
+  }
+
+}
