@@ -2,7 +2,7 @@
 
 
 - [x] First Milestone - Extracting
-- [ ] Second Milestone
+- [x] Second Milestone
 - [ ] Third Milestone
 - [ ] Fourth Milestone
 - [ ] Fifth Milestone
@@ -142,7 +142,7 @@ First I read the csv path and create my own schema. Afte that I just read the cs
 
 Your records contain the average temperature over a year, for each station’s location. Your work consists in building an image of 360×180 pixels, where each pixel shows the temperature at its location. The point at latitude 0 and longitude 0 (the intersection between the Greenwich meridian and the equator) will be at the center of the image:
 
-![Location](https://github.com/samuelamico//image.jpg?raw=true)
+![Location](https://github.com/samuelamico/ClimateWorld/blob/master/img/milestone2.PNG)
 
 In this figure, the red crosses represent the weather stations. As you can see, you will have to spatially interpolate the data in order to guess the temperature corresponding to the location of each pixel (such a pixel is represented by a green square in the picture). Then you will have to convert this temperature value into a pixel color based on a color scale:
 
@@ -181,3 +181,5 @@ def visualize(
   colors: Iterable[(Temperature, Color)]
 ): Image
 ```
+
+Note that the (x,y) coordinates of the top-left pixel is (0,0) and then the x axis grows to the right and the y axis grows to the bottom, whereas the latitude and longitude origin, (0,0), is at the center of the image, and the top-left pixel has GPS coordinates (90, -180).
