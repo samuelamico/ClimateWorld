@@ -1,24 +1,36 @@
 package observatory
 
+import java.nio.file.Paths
 import java.time.LocalDate
 
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.sql.{Dataset, Row, SparkSession}
-import org.apache.spark.sql.functions.{col, lit, udf}
-import org.apache.spark.sql.types._
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions.udf
+
+import scala.io._
 /**
   * 1st milestone: data extraction
   */
 object Extraction extends ExtractionInterface {
   Logger.getLogger("org.apache.spark").setLevel(Level.WARN)
   // Create the Spark Session
+
   val spark = SparkSession
     .builder()
     .master("local")
     .appName("Climate Temperature")
     .config("spark.ui.port", "8081")
     .getOrCreate()
+
+
   import spark.implicits._
+
+  // Read File Path
+  def getDSFromResource(resource: String) = {
+    val fileStream = Source.getClass.getResourceAsStream(resource)
+    spark.sparkContext.makeRDD(Source.fromInputStream(fileStream).getLines().toList).toDF
+  }
 
   // UDF functions
   val convert = udf((s: Double) => (s - 32.0) * (5.0/9.0))
@@ -27,82 +39,40 @@ object Extraction extends ExtractionInterface {
     case null => ""
     case s => s
   })
+  def convertCelsius(fahrenheit: Temperature): Temperature =
+    (fahrenheit - 32) / 1.8
+  private def resourcePath(resource: String): String = Paths.get(getClass.getResource(resource).toURI).toString
+
 
   // Reading File and Wrangling them
   def readStation(stationFile: String) = {
-    // get path
-    val path = getClass.getResource(stationFile).getPath
-    // Schema for my dataframe
-    val schemaStation = StructType(List(
-      StructField("SIN",StringType,nullable = true),
-      StructField("WBAN",StringType,nullable = true),
-      StructField("Latitude",DoubleType,nullable = true),
-      StructField("Longitude",DoubleType,nullable = true)
-    ))
+    val stationsRdd = spark.sparkContext.parallelize(
+      Source.fromInputStream(getClass.getResourceAsStream(stationFile), "utf-8").getLines().toStream
+    )
 
-    // retrun the dataframe with unique ID
-    val stationDF = spark.read.schema(schemaStation)
-      .format("csv")
-      //.option("header", "false")
-      //.option("delimiter", ",")
-      .load(path)
-      .withColumn("id", uniqueID(col("SIN"),col("WBAN")))
-      .na.drop(Seq("Latitude","Longitude"))
-      .withColumn("WBAN",extractDateAsOptionInt(col("WBAN")))
-      .withColumn("SIN",extractDateAsOptionInt(col("SIN")))
-      .withColumn("id", uniqueID(col("SIN"),col("WBAN")))
-      .select(col("id"),col("Latitude"),col("Longitude"))
-      .where(col("Latitude") =!= 0.0 && col("Longitude") =!= 0.0)
+    val stations = stationsRdd
+      .map(_.split(','))
+      .filter(_.length == 4)
+      .filter(line => line(2).toDouble != 0.0 && line(3).toDouble != 0.0)
+      .map(a => ((a(0), a(1)), Location(a(2).toDouble, a(3).toDouble)))
 
-    stationDF
+    stations
   }
 
   def readTempYear(temperaturesFile: String,year: Int) = {
-    // Read the spcefic file
-    val file = "/" + year.toString() + ".csv"
-    val tempPath = getClass.getResource(file).getPath
+    val tempRdd = spark.sparkContext.parallelize(
+      Source.fromInputStream(getClass.getResourceAsStream(temperaturesFile), "utf-8").getLines().toStream
+    )
 
-    // Struncture Schema
-    val schemaTemp = StructType(List(
-      StructField("SIN",StringType,nullable = true),
-      StructField("WBAN",StringType,nullable = true),
-      StructField("Month",IntegerType,nullable = true),
-      StructField("Day",IntegerType,nullable = true),
-      StructField("Temperature",DoubleType,nullable = true),
-    ))
+    tempRdd.map(_.split(','))
+      .filter(_.length == 5)
+      .map(a => ((a(0), a(1)), (LocalDate.of(year, a(2).toInt, a(3).toInt), convertCelsius(a(4).toDouble))))
 
-    val tempDF = spark.read.schema(schemaTemp)
-      .format("csv")
-      //.option("header", "false")
-      //.option("delimiter", ",")
-      .load(tempPath)
-      .withColumn("Temp", convert(col("Temperature")))
-      .withColumn("WBAN",extractDateAsOptionInt(col("WBAN")))
-      .withColumn("SIN",extractDateAsOptionInt(col("SIN")))
-      .withColumn("id_t", uniqueID(col("SIN"),col("WBAN")))
-      .withColumn("year",lit(year))
-      .select(col("id_t"),col("year"),col("Month"),col("Day"),col("Temp").as("Temperature"))
-      .where(col("Temperature").between(-200.0,200.0))
-    tempDF
   }
 
 
-  def joined(station: Dataset[Row],temp: Dataset[Row]) = {
-    temp.join(station,temp("id_t") === station("id"))
-      .select(
-        col("id"),
-        col("year"),
-        col("Month"),
-        col("Day"),
-        col("Temperature"),
-        col("Latitude"),
-        col("Longitude")
-      )
-      .as[Joined]
-      .as[Joined]
-      .map(j => (StationDate(j.day, j.month, j.year), Location(j.latitude, j.longitude), j.temperature))
-      .toDF("date", "location", "temperature")
-      .as[JoinedFormat]
+  def joined(station: RDD[((String,String),Location)],temp: RDD[((String,String),(LocalDate,Double))]) = {
+    station.join(temp).mapValues(v => (v._2._1, v._1, v._2._2)).values
   }
 
 
@@ -115,16 +85,9 @@ object Extraction extends ExtractionInterface {
 
   def locateTemperatures(year: Year, stationsFile: String, temperaturesFile: String): Iterable[(LocalDate, Location, Temperature)] = {
     // Reading Files:
-    val stationDF = readStation(stationsFile)
-    val tempDF = readTempYear(temperaturesFile,year)
-
-    //result join
-    val joinDS = joined(stationDF,tempDF)
-    joinDS.collect()
-      .par
-      .map(
-        jf => (jf.date.toLocalDate, jf.location, jf.temperature)
-      ).seq
+    val stationRdd = readStation(stationsFile)
+    val tempRdd = readTempYear(temperaturesFile,year)
+    joined(stationRdd,tempRdd).collect().toSeq
 
   }
 
@@ -142,5 +105,6 @@ object Extraction extends ExtractionInterface {
       )
       .seq
   }
+
 
 }
