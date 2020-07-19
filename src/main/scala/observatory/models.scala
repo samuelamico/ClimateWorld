@@ -19,7 +19,10 @@ case class Location(lat: Double, lon: Double) {
   * @param y Y coordinate of the tile
   * @param zoom Zoom level, 0 ≤ zoom ≤ 19
   */
-case class Tile(x: Int, y: Int, zoom: Int)
+case class Tile(x: Int, y: Int, zoom: Int){
+  def toURI = new java.net.URI("http://tile.openstreetmap.org/" + zoom + "/" + x + "/" + y + ".png")
+}
+
 
 /**
   * Introduced in Week 4. Represents a point on a grid composed of
