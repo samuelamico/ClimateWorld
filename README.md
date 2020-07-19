@@ -3,7 +3,7 @@
 
 - [x] First Milestone - Extracting
 - [x] Second Milestone
-- [ ] Third Milestone
+- [X] Third Milestone
 - [ ] Fourth Milestone
 - [ ] Fifth Milestone
 - [ ] Last Milestone
@@ -183,3 +183,37 @@ def visualize(
 ```
 
 Note that the (x,y) coordinates of the top-left pixel is (0,0) and then the x axis grows to the right and the y axis grows to the bottom, whereas the latitude and longitude origin, (0,0), is at the center of the image, and the top-left pixel has GPS coordinates (90, -180).
+
+
+## Third Milestone
+
+n Web based mapping applications, the whole map is broken down into small images of size 256×256 pixels, called tiles. Each tile shows a part of the map at a given location and zoom level. Your work consists in producing these tiles using the Web Mercator projection.
+
+You can monitor your progress by submitting your work at any time during the development of this milestone. Your submission token and the list of your graded submissions is available on this page.
+
+### Tile generation
+
+```scala
+def tileLocation(tile: Tile): Location
+```
+
+This method converts a tile's geographic position to its corresponding GPS coordinates, by applying the Web Mercator projection.
+
+```scala
+def tile(
+  temperatures: Iterable[(Location, Temperature)],
+  colors: Iterable[(Temperature, Color)],
+  tile: Tile
+): Image
+```
+
+This method returns a 256×256 image showing the given temperatures, using the given color scale, at the location corresponding to the given zoom, x and y values. Note that the pixels of the image must be a little bit transparent so that when we will overlay the tile on the map, the map will still be visible. We recommend using an alpha value of 127.
+
+```scala
+def generateTiles[Data](
+  yearlyData: Iterable[(Year, Data)],
+  generateImage: (Year, Tile, Data) => Unit
+): Unit
+```
+
+This method generates all the tiles for a given dataset yearlyData, for zoom levels 0 to 3 (included). The dataset contains pairs of (Year, Data) values, or, said otherwise, data associated with years. In your case, this data will be the result of Extraction.locationYearlyAverageRecords. The second parameter of the generateTiles method is a function that takes a year, the coordinates of the tile to generate, and the data associated with the year, and computes the tile and writes it on your filesystem.
