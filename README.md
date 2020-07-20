@@ -4,9 +4,9 @@
 - [x] First Milestone - Extracting
 - [x] Second Milestone
 - [X] Third Milestone
-- [ ] Fourth Milestone
-- [ ] Fifth Milestone
-- [ ] Last Milestone
+- [X] Fourth Milestone
+- [X] Fifth Milestone
+- [X] Last Milestone
 
 
 *  **Data File**: The data you will use comes from the [National Center for Environmental Information of the United States](!https://www.ncei.noaa.gov/).
@@ -217,3 +217,46 @@ def generateTiles[Data](
 ```
 
 This method generates all the tiles for a given dataset yearlyData, for zoom levels 0 to 3 (included). The dataset contains pairs of (Year, Data) values, or, said otherwise, data associated with years. In your case, this data will be the result of Extraction.locationYearlyAverageRecords. The second parameter of the generateTiles method is a function that takes a year, the coordinates of the tile to generate, and the data associated with the year, and computes the tile and writes it on your filesystem.
+
+
+
+## Fourth Milestone
+
+Computing deviations means comparing a value to a previous value which serves as a reference, or a “normal” temperature. You will first compute the average temperatures all over the world between 1975 and 1990. This will constitute your reference temperatures, which we refer to as “normals”. You will then compare the yearly average temperatures, for each year between 1991 and 2015, to the normals.
+
+In order to make things faster, you will first spatially interpolate your scattered data into a regular grid:
+
+### Grid generation
+
+To describe a grid point's location, we'll use integer latitude and longitude values. This way, every grid point (in green above) is the intersection of a circle of latitude and a line of longitude. Since this is a new coordinate system, we're introducing another case class, quite similar to Location but with integer coordinates:
+
+```scala
+case class GridLocation(lat: Int, lon: Int)
+```
+
+The latitude can be any integer between -89 and 90, and the longitude can be any integer between -180 and 179. The top-left corner has coordinates (90, -180), and the bottom-right corner has coordinates (-89, 179).
+
+The grid associates every grid location with a temperature. You are free to internally represent the grid as you want (e.g. using a class Grid), but to interoperate with the grading system you will have to convert it to a function of type GridLocation => Temperature, which returns the temperature at the given grid location.
+
+```scala
+def makeGrid(temperatures: Iterable[(Location, Temperature)]): GridLocation => Temperature
+```
+
+It takes as parameter the temperatures associated with their location and returns the corresponding grid.
+
+### Average and deviation computation
+
+```scala
+def average(temperaturess: Iterable[Iterable[(Location, Temperature)]]): GridLocation => Temperature
+```
+
+This method takes a sequence of temperature data over several years (each “temperature data” for one year being a sequence of pairs of average yearly temperature and location), and returns a grid containing the average temperature over the given years at each location.
+
+```scala
+def deviation(
+  temperatures: Iterable[(Location, Temperature)],
+  normals: GridLocation => Temperature
+): GridLocation => Temperature
+```
+
+This method takes temperature data and a grid containing normal temperatures, and returns a grid containing temperature deviations from the normals.
